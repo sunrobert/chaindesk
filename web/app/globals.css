@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body {
+  background: #0b0d10;
+  color: #e6edf3;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #222933; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #2c3340; }
+
+/* RainbowKit dark tweaks */
+[data-rk] { --rk-colors-modalBackground: #11151a; }
+
+/* Numeric tabular */
+.tab-nums { font-variant-numeric: tabular-nums; }
