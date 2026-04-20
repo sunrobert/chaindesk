@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react';
 
 export function Panel({
+  id,
   title,
   right,
   children,
   className = '',
 }: {
+  id?: string;
   title: string;
   right?: ReactNode;
   children: ReactNode;
@@ -13,6 +15,7 @@ export function Panel({
 }) {
   return (
     <section
+      id={id}
       className={`flex min-h-0 flex-col overflow-hidden bg-bg ${className}`}
     >
       <div className="flex h-8 shrink-0 items-center justify-between border-b border-border bg-panel px-3">

@@ -51,8 +51,8 @@ export function Chart({
 
     const chart = createChart(el, {
       layout: {
-        background: { type: ColorType.Solid, color: '#0a0a0a' },
-        textColor: '#a1a1aa',
+        background: { type: ColorType.Solid, color: '#000000' },
+        textColor: '#909090',
         fontFamily: 'var(--font-jetbrains-mono), ui-monospace, monospace',
         fontSize: 11,
       },
@@ -60,32 +60,32 @@ export function Chart({
         vertLines: { color: '#1a1a1a' },
         horzLines: { color: '#1a1a1a' },
       },
-      rightPriceScale: { borderColor: '#1f1f1f' },
+      rightPriceScale: { borderColor: '#1d1d1d' },
       timeScale: {
-        borderColor: '#1f1f1f',
+        borderColor: '#1d1d1d',
         timeVisible: true,
         secondsVisible: false,
       },
       crosshair: {
         mode: CrosshairMode.Normal,
         horzLine: {
-          color: '#eab308',
-          labelBackgroundColor: '#eab308',
+          color: '#ffa028',
+          labelBackgroundColor: '#ffa028',
         },
         vertLine: {
-          color: '#eab308',
-          labelBackgroundColor: '#eab308',
+          color: '#ffa028',
+          labelBackgroundColor: '#ffa028',
         },
       },
     });
 
     const series = chart.addCandlestickSeries({
-      upColor: '#22c55e',
-      downColor: '#ef4444',
-      borderUpColor: '#22c55e',
-      borderDownColor: '#ef4444',
-      wickUpColor: '#22c55e',
-      wickDownColor: '#ef4444',
+      upColor: '#4af6c3',
+      downColor: '#ff433d',
+      borderUpColor: '#4af6c3',
+      borderDownColor: '#ff433d',
+      wickUpColor: '#4af6c3',
+      wickDownColor: '#ff433d',
     });
 
     chartRef.current = chart;
@@ -163,7 +163,7 @@ export function Chart({
       out.push({
         key: `${side}-${id.toString()}`,
         price,
-        color: side === 'buy' ? '#22c55e' : '#ef4444',
+        color: side === 'buy' ? '#4af6c3' : '#ff433d',
         title: `${side === 'buy' ? 'BUY' : 'SELL'} ${formatSize(size)} ${BASE_SYM}`,
       });
     }
@@ -215,7 +215,7 @@ export function Chart({
       .map((f) => ({
         time: f.timestamp as UTCTimestamp,
         position: 'aboveBar' as const,
-        color: '#eab308',
+        color: '#ffa028',
         shape: 'circle' as const,
         text: `fill #${String(f.orderId)}`,
       }))
@@ -227,7 +227,7 @@ export function Chart({
     seriesRef.current?.setMarkers(markers);
   }, [ready, markers]);
 
-  const buyCount = overlayLines.filter((l) => l.color === '#22c55e').length;
+  const buyCount = overlayLines.filter((l) => l.color === '#4af6c3').length;
   const sellCount = overlayLines.length - buyCount;
 
   return (

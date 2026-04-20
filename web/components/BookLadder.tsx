@@ -57,6 +57,57 @@ export function BookLadder() {
     });
   };
 
+  // Collect every individual orderId across every crossable level, skipping
+  // the user's own orders (can't execute yourself).
+  const crossableOrders = useMemo(() => {
+    const all = [...asks, ...bids];
+    const out: { orderId: bigint; side: 'buy' | 'sell' }[] = [];
+    for (const lvl of all) {
+      if (!isCrossable(lvl.side, lvl.price, ref)) continue;
+      for (let i = 0; i < lvl.orderIds.length; i++) {
+        const maker = lvl.makers[i];
+        if (
+          address &&
+          maker &&
+          maker.toLowerCase() === address.toLowerCase()
+        ) {
+          continue;
+        }
+        out.push({ orderId: lvl.orderIds[i], side: lvl.side });
+      }
+    }
+    return out;
+  }, [asks, bids, ref, address]);
+
+  const [batchIdx, setBatchIdx] = useState<number | null>(null);
+  const batchActive = batchIdx !== null;
+  const batchTotal = crossableOrders.length;
+
+  const runBatch = async () => {
+    if (batchTotal === 0 || batchActive) return;
+    for (let i = 0; i < crossableOrders.length; i++) {
+      const { orderId, side } = crossableOrders[i];
+      setBatchIdx(i + 1);
+      const tokenIn = side === 'sell' ? BASE.address : QUOTE.address;
+      const tokenOut = side === 'sell' ? QUOTE.address : BASE.address;
+      try {
+        // writeContractAsync returns the tx hash (or throws on user reject).
+        // Fire and forget — we don't wait for receipt here, so the next
+        // wallet popup appears as soon as the previous is signed.
+        await execute.writeContractAsync({
+          address: CONTRACT_ADDRESS,
+          abi: limitOrderBookAbi,
+          functionName: 'executeOrder',
+          args: [orderId, [tokenIn, tokenOut]],
+        });
+      } catch {
+        // User rejected or tx failed — abort the rest of the batch.
+        break;
+      }
+    }
+    setBatchIdx(null);
+  };
+
   const bestAsk = asks[0]?.price;
   const bestBid = bids[0]?.price;
   const spread =
@@ -102,6 +153,19 @@ export function BookLadder() {
           {spread} · {spreadPct}
         </span>
       </div>
+
+      {/* Execute-all row: only visible when there's someone else's crossable order. */}
+      {batchTotal > 0 && (
+        <button
+          onClick={runBatch}
+          disabled={batchActive}
+          className="border-b border-border bg-accent/10 py-[6px] text-center text-[10px] font-semibold uppercase tracking-widest text-accent hover:bg-accent/20 disabled:opacity-60"
+        >
+          {batchActive
+            ? `Executing ${batchIdx}/${batchTotal}…`
+            : `⚡ Execute ${batchTotal} crossable order${batchTotal === 1 ? '' : 's'}`}
+        </button>
+      )}
 
       {/* BIDS (buys) */}
       <div className="flex-1 min-h-0 overflow-auto">

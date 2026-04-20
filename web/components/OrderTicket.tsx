@@ -6,6 +6,7 @@ import { parseUnits, formatUnits, maxUint256 } from 'viem';
 import { limitOrderBookAbi, erc20Abi } from '@/lib/abi';
 import { BASE, QUOTE, CONTRACT_ADDRESS, BSCSCAN } from '@/lib/constants';
 import { useAllowance, useBalance } from '@/hooks/useAllowance';
+import { useRefPrice } from '@/hooks/useRefPrice';
 import { formatPrice } from '@/lib/price';
 
 type Side = 'buy' | 'sell';
@@ -21,16 +22,29 @@ export function OrderTicket({
 
   const [side, setSide] = useState<Side>('buy');
   const [price, setPrice] = useState<string>('');
+  const [priceTouched, setPriceTouched] = useState(false);
   const [amount, setAmount] = useState<string>('');
   const [ttlMin, setTtlMin] = useState<number>(1440);
   const [status, setStatus] = useState<string>('');
 
+  const refPrice = useRefPrice();
+
+  // Seed the limit price with the live spot price until the user edits it.
+  // Chart clicks (prefillPrice) always win and count as an edit.
   useEffect(() => {
     if (prefillPrice != null && Number.isFinite(prefillPrice)) {
       setPrice(formatPrice(prefillPrice));
+      setPriceTouched(true);
       clearPrefill();
     }
   }, [prefillPrice, clearPrefill]);
+
+  useEffect(() => {
+    if (priceTouched) return;
+    if (refPrice != null && Number.isFinite(refPrice) && refPrice > 0) {
+      setPrice(formatPrice(refPrice));
+    }
+  }, [refPrice, priceTouched]);
 
   const tokenIn = side === 'buy' ? QUOTE : BASE;
   const tokenOut = side === 'buy' ? BASE : QUOTE;
@@ -155,7 +169,11 @@ export function OrderTicket({
         <Field label={`LIMIT PRICE (${QUOTE.symbol})`}>
           <input
             value={price}
-            onChange={(e) => setPrice(e.target.value)}
+            onChange={(e) => {
+              setPriceTouched(true);
+              setPrice(sanitizeDecimal(e.target.value));
+            }}
+            onFocus={() => setPriceTouched(true)}
             inputMode="decimal"
             placeholder="0.00"
             className="num w-full bg-transparent text-lg text-text outline-none placeholder:text-muted"
@@ -165,7 +183,7 @@ export function OrderTicket({
         <Field label={`AMOUNT (${BASE.symbol})`}>
           <input
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => setAmount(sanitizeDecimal(e.target.value))}
             inputMode="decimal"
             placeholder="0.0"
             className="num w-full bg-transparent text-lg text-text outline-none placeholder:text-muted"
@@ -369,6 +387,17 @@ function fmt(s: string): string {
   if (n >= 1000) return n.toFixed(2);
   if (n >= 1) return n.toFixed(4);
   return n.toFixed(6);
+}
+
+// Keep only digits and a single decimal point; strip everything else.
+function sanitizeDecimal(raw: string): string {
+  const cleaned = raw.replace(/[^0-9.]/g, '');
+  const firstDot = cleaned.indexOf('.');
+  if (firstDot === -1) return cleaned;
+  return (
+    cleaned.slice(0, firstDot + 1) +
+    cleaned.slice(firstDot + 1).replace(/\./g, '')
+  );
 }
 
 function shortErr(err: unknown): string {
