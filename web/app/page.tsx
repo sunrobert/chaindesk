@@ -17,6 +17,7 @@ import { SignalsStrip } from '@/components/SignalsStrip';
 import { StatusFooter } from '@/components/StatusFooter';
 import { HelpModal } from '@/components/HelpModal';
 import { NewsTicker } from '@/components/NewsTicker';
+import { MarketRead } from '@/components/MarketRead';
 
 type ChartMode = 'native' | 'tradingview';
 
@@ -82,8 +83,11 @@ export default function Page() {
           <BookLadder />
         </Panel>
 
-        {/* COL 2: My Orders + Recent Fills */}
+        {/* COL 2: Market Read + My Orders + Recent Fills */}
         <div className="flex min-h-0 flex-col border-r border-border">
+          <div className="shrink-0">
+            <MarketRead />
+          </div>
           <div className="flex min-h-0 flex-[3] flex-col">
             <Panel title="My Orders">
               <MyOrders />
