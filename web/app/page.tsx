@@ -7,7 +7,6 @@ import { Chart, type TimeframeId } from '@/components/Chart';
 import { TradingViewChart } from '@/components/TradingViewChart';
 import { OrderTicket } from '@/components/OrderTicket';
 import { MyOrders } from '@/components/MyOrders';
-import { RecentFills } from '@/components/RecentFills';
 import { BookLadder } from '@/components/BookLadder';
 import { WrapHelper } from '@/components/WrapHelper';
 import { GetBusd } from '@/components/GetBusd';
@@ -18,6 +17,7 @@ import { StatusFooter } from '@/components/StatusFooter';
 import { HelpModal } from '@/components/HelpModal';
 import { NewsTicker } from '@/components/NewsTicker';
 import { MarketRead } from '@/components/MarketRead';
+import { FillsTabs } from '@/components/FillsTabs';
 
 type ChartMode = 'native' | 'tradingview';
 
@@ -73,6 +73,7 @@ export default function Page() {
       <NewsTicker />
       <StatsBar />
       <SignalsStrip />
+      <MarketRead />
       <main className="grid min-h-0 flex-1 grid-cols-[16%_18%_46%_20%]">
         {/* COL 1: Order book ladder */}
         <Panel
@@ -83,20 +84,15 @@ export default function Page() {
           <BookLadder />
         </Panel>
 
-        {/* COL 2: Market Read + My Orders + Recent Fills */}
+        {/* COL 2: My Orders + Fills/Executors tabs */}
         <div className="flex min-h-0 flex-col border-r border-border">
-          <div className="shrink-0">
-            <MarketRead />
-          </div>
           <div className="flex min-h-0 flex-[3] flex-col">
             <Panel title="My Orders">
               <MyOrders />
             </Panel>
           </div>
           <div id="panel-fills" className="flex min-h-0 flex-[2] flex-col border-t border-border">
-            <Panel title="Recent Fills">
-              <RecentFills />
-            </Panel>
+            <FillsTabs />
           </div>
         </div>
 

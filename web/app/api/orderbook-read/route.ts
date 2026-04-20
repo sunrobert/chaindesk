@@ -112,6 +112,47 @@ function formatOrder(o: OnchainOrder): {
   };
 }
 
+function buildDemoRead(
+  orders: ReturnType<typeof formatOrder>[],
+  spot: number | null,
+  markets: PolymarketRow[]
+): string {
+  if (orders.length === 0) {
+    return 'Onchain book thin — no resting limit orders across WBNB/BUSD at print. With spot unanchored by maker depth, flows will run on raw Binance prints. Prediction markets offer no directional crosscheck while book is empty. Bias: neutral, await first resting size.';
+  }
+
+  const bids = orders.filter((o) => o.side === 'buy');
+  const asks = orders.filter((o) => o.side === 'sell');
+  const bidVol = bids.reduce((s, o) => s + o.sizeWbnb, 0);
+  const askVol = asks.reduce((s, o) => s + o.sizeWbnb, 0);
+  const imbalance = bidVol + askVol > 0
+    ? (bidVol - askVol) / (bidVol + askVol)
+    : 0;
+  const makers = new Set(orders.map((o) => o.maker));
+
+  let sentence1: string;
+  if (Math.abs(imbalance) < 0.15) {
+    sentence1 = `Onchain book balanced across ${orders.length} resting orders from ${makers.size} makers — ${bidVol.toFixed(2)} WBNB bid vs ${askVol.toFixed(2)} WBNB offer, no side stepping in front.`;
+  } else if (imbalance > 0) {
+    sentence1 = `Onchain book skewed bid-heavy: ${bidVol.toFixed(2)} WBNB resting on buy vs ${askVol.toFixed(2)} WBNB on offer across ${makers.size} makers, implying accumulation below spot.`;
+  } else {
+    sentence1 = `Onchain book skewed ask-heavy: ${askVol.toFixed(2)} WBNB sitting on offer vs ${bidVol.toFixed(2)} WBNB bid across ${makers.size} makers, consistent with distribution into strength.`;
+  }
+
+  const spotLine = spot
+    ? ` Binance spot ${spot.toFixed(2)} prints ${orders[0].price < spot ? 'above' : 'at'} the nearest resting level.`
+    : '';
+
+  const topMarket = markets[0];
+  const sentence2 = topMarket && topMarket.yesPct != null
+    ? ` Polymarket "${topMarket.question.slice(0, 70)}${topMarket.question.length > 70 ? '…' : ''}" trading ${topMarket.yesPct.toFixed(0)}% YES on $${Math.round(topMarket.volume24h).toLocaleString()} 24h — ${topMarket.yesPct > 55 ? 'confirms' : topMarket.yesPct < 45 ? 'cuts against' : 'sits neutral to'} the onchain tone.`
+    : '';
+
+  const bias = imbalance > 0.15 ? 'Lean long into bid wall.' : imbalance < -0.15 ? 'Respect offer; fade rips.' : 'Neutral until imbalance breaks.';
+
+  return `${sentence1}${spotLine}${sentence2} ${bias}`;
+}
+
 export async function GET() {
   const client = createPublicClient({
     chain: bscTestnet,
@@ -172,50 +213,53 @@ ${pmLines}
 Produce the market read now.`;
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: 'ANTHROPIC_API_KEY not configured' },
-      { status: 500 }
-    );
-  }
-
   let read = '';
-  try {
-    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 200,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: userMessage }],
-      }),
-      cache: 'no-store',
-    });
-    if (!anthropicRes.ok) {
-      const text = await anthropicRes.text();
+  if (apiKey) {
+    try {
+      const anthropicRes = await fetch(
+        'https://api.anthropic.com/v1/messages',
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 200,
+            system: SYSTEM_PROMPT,
+            messages: [{ role: 'user', content: userMessage }],
+          }),
+          cache: 'no-store',
+        }
+      );
+      if (!anthropicRes.ok) {
+        const text = await anthropicRes.text();
+        return NextResponse.json(
+          { error: `anthropic ${anthropicRes.status}: ${text.slice(0, 200)}` },
+          { status: 502 }
+        );
+      }
+      const data = (await anthropicRes.json()) as {
+        content?: Array<{ type: string; text?: string }>;
+      };
+      read = (data.content ?? [])
+        .filter((c) => c.type === 'text' && typeof c.text === 'string')
+        .map((c) => c.text)
+        .join('\n')
+        .trim();
+    } catch (err) {
       return NextResponse.json(
-        { error: `anthropic ${anthropicRes.status}: ${text.slice(0, 200)}` },
+        { error: `fetch failed: ${(err as Error).message}` },
         { status: 502 }
       );
     }
-    const data = (await anthropicRes.json()) as {
-      content?: Array<{ type: string; text?: string }>;
-    };
-    read = (data.content ?? [])
-      .filter((c) => c.type === 'text' && typeof c.text === 'string')
-      .map((c) => c.text)
-      .join('\n')
-      .trim();
-  } catch (err) {
-    return NextResponse.json(
-      { error: `fetch failed: ${(err as Error).message}` },
-      { status: 502 }
-    );
+  } else {
+    // Demo fallback — no API key configured. Produce a plausible, data-driven
+    // read from the real orderbook + spot + Polymarket so the panel still
+    // tells a story during live demos.
+    read = buildDemoRead(formatted, spot, predictionMarkets);
   }
 
   return NextResponse.json({
