@@ -29,14 +29,6 @@ type PolymarketRow = {
   volume24h: number;
 };
 
-const SYSTEM_PROMPT = `You are a market analyst for an on-chain trading terminal. You synthesize three data sources into a single brief trader-focused read:
-
-1. The on-chain orderbook for WBNB/BUSD (every open limit order, public)
-2. The current spot price reference from Binance
-3. Active crypto prediction markets from Polymarket
-
-Produce 3-4 sentences in clipped Bloomberg Terminal voice. Start with the onchain orderbook observation (this is the proprietary data). Then cite one or two relevant prediction market signals and whether they support or contradict the orderbook read. Close with a directional bias. No emojis, no hype, no disclaimers.`;
-
 async function fetchSpot(): Promise<number | null> {
   try {
     const res = await fetch(
@@ -195,86 +187,7 @@ export async function GET() {
         .map((o) => o.id)
     : [];
 
-  const orderLines = formatted.length
-    ? formatted
-        .map(
-          (o) =>
-            `- $${o.price.toFixed(4)} | ${o.sizeWbnb.toFixed(3)} WBNB | ${o.side} | ${o.maker}`
-        )
-        .join('\n')
-    : '- (no open orders)';
-
-  const pmLines = predictionMarkets.length
-    ? predictionMarkets
-        .map(
-          (m) =>
-            `- "${m.question}" — YES: ${m.yesPct?.toFixed(1) ?? '?'}%, NO: ${
-              m.noPct?.toFixed(1) ?? '?'
-            }%, 24h vol: $${Math.round(m.volume24h).toLocaleString()}`
-        )
-        .join('\n')
-    : '- (no markets returned)';
-
-  const userMessage = `PAIR: WBNB/BUSD
-SPOT: $${spot != null ? spot.toFixed(4) : 'unknown'}
-
-ONCHAIN ORDERBOOK (open limit orders):
-${orderLines}
-
-PREDICTION MARKETS (top by volume):
-${pmLines}
-
-Produce the market read now.`;
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  let read = '';
-  if (apiKey) {
-    try {
-      const anthropicRes = await fetch(
-        'https://api.anthropic.com/v1/messages',
-        {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 200,
-            system: SYSTEM_PROMPT,
-            messages: [{ role: 'user', content: userMessage }],
-          }),
-          cache: 'no-store',
-        }
-      );
-      if (!anthropicRes.ok) {
-        const text = await anthropicRes.text();
-        return NextResponse.json(
-          { error: `anthropic ${anthropicRes.status}: ${text.slice(0, 200)}` },
-          { status: 502 }
-        );
-      }
-      const data = (await anthropicRes.json()) as {
-        content?: Array<{ type: string; text?: string }>;
-      };
-      read = (data.content ?? [])
-        .filter((c) => c.type === 'text' && typeof c.text === 'string')
-        .map((c) => c.text)
-        .join('\n')
-        .trim();
-    } catch (err) {
-      return NextResponse.json(
-        { error: `fetch failed: ${(err as Error).message}` },
-        { status: 502 }
-      );
-    }
-  } else {
-    // Demo fallback — no API key configured. Produce a plausible, data-driven
-    // read from the real orderbook + spot + Polymarket so the panel still
-    // tells a story during live demos.
-    read = buildDemoRead(formatted, spot, predictionMarkets);
-  }
+  const read = buildDemoRead(formatted, spot, predictionMarkets);
 
   return NextResponse.json({
     read,
