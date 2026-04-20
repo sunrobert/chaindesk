@@ -4,11 +4,12 @@ import { useMemo } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { useState, useEffect } from 'react';
 import { limitOrderBookAbi } from '@/lib/abi';
-import { BASE, QUOTE, CONTRACT_ADDRESS } from '@/lib/constants';
+import { BASE, QUOTE, CONTRACT_ADDRESS, BSCSCAN } from '@/lib/constants';
 import { useOpenOrders } from '@/hooks/useOpenOrders';
 import { useRefPrice } from '@/hooks/useRefPrice';
+import { useOrderTxHashes } from '@/hooks/useOrderTxHashes';
 import { buildBook, isCrossable, type BookLevel } from '@/lib/book';
-import { formatPrice, formatSize } from '@/lib/price';
+import { formatPrice, formatSize, shortAddr } from '@/lib/price';
 
 const MAX_LEVELS = 12; // per side
 
@@ -16,6 +17,8 @@ export function BookLadder() {
   const { address } = useAccount();
   const { orders } = useOpenOrders();
   const ref = useRefPrice();
+  const txByOrder = useOrderTxHashes();
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   const { asks, bids } = useMemo(() => buildBook(orders), [orders]);
   const askSlice = asks.slice(0, MAX_LEVELS).reverse(); // best ask at bottom
@@ -138,6 +141,13 @@ export function BookLadder() {
             onExecute={onExecute}
             pendingKey={pendingKey}
             isExecuting={execute.isPending || receipt.isLoading}
+            txByOrder={txByOrder}
+            expanded={expandedKey === `sell-${lvl.price}`}
+            onToggle={() =>
+              setExpandedKey((k) =>
+                k === `sell-${lvl.price}` ? null : `sell-${lvl.price}`,
+              )
+            }
           />
         ))}
       </div>
@@ -182,6 +192,13 @@ export function BookLadder() {
             onExecute={onExecute}
             pendingKey={pendingKey}
             isExecuting={execute.isPending || receipt.isLoading}
+            txByOrder={txByOrder}
+            expanded={expandedKey === `buy-${lvl.price}`}
+            onToggle={() =>
+              setExpandedKey((k) =>
+                k === `buy-${lvl.price}` ? null : `buy-${lvl.price}`,
+              )
+            }
           />
         ))}
       </div>
@@ -208,6 +225,9 @@ function LevelRow({
   onExecute,
   pendingKey,
   isExecuting,
+  txByOrder,
+  expanded,
+  onToggle,
 }: {
   lvl: BookLevel;
   maxCum: number;
@@ -216,6 +236,9 @@ function LevelRow({
   onExecute: (l: BookLevel) => void;
   pendingKey: string | null;
   isExecuting: boolean;
+  txByOrder: Map<string, `0x${string}`>;
+  expanded: boolean;
+  onToggle: () => void;
 }) {
   // Width of background bar (simple per-level proportion, not cumulative)
   const barPct = Math.min(100, (lvl.size / maxCum) * 100);
@@ -237,22 +260,34 @@ function LevelRow({
         className={`absolute inset-y-0 right-0 bg-gradient-to-l ${bg}`}
         style={{ width: `${barPct}%` }}
       />
-      <div className="relative grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2 px-2 py-[3px] text-[11px] hover:bg-panel">
+      <button
+        onClick={onToggle}
+        className="relative grid w-full grid-cols-[1fr_1fr_1fr_auto] items-center gap-2 px-2 py-[3px] text-[11px] text-left hover:bg-panel"
+        title={expanded ? 'Hide order details' : 'Show each order + BscScan tx'}
+      >
         <span className={`num ${color}`}>{formatPrice(lvl.price)}</span>
         <span className="num text-right text-text">{formatSize(lvl.size)}</span>
         <span className="num text-right text-muted">
-          {lvl.orderIds.length}
+          <span className="underline decoration-dotted decoration-muted/60 underline-offset-2">
+            {lvl.orderIds.length}
+          </span>
           {isMine ? <span className="ml-1 text-accent">●</span> : null}
+          <span className="ml-1 text-[8px] text-muted">
+            {expanded ? '▾' : '▸'}
+          </span>
         </span>
         <div className="w-[54px] text-right">
           {crossable && !isMine ? (
-            <button
-              onClick={() => onExecute(lvl)}
-              disabled={isExecuting}
-              className="border border-accent bg-accent/10 px-1 py-[1px] text-[9px] font-semibold uppercase tracking-widest text-accent hover:bg-accent/20 disabled:opacity-40"
+            <span
+              role="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isExecuting) onExecute(lvl);
+              }}
+              className="inline-block border border-accent bg-accent/10 px-1 py-[1px] text-[9px] font-semibold uppercase tracking-widest text-accent hover:bg-accent/20"
             >
               {pending ? '…' : 'exec'}
-            </button>
+            </span>
           ) : isMine ? (
             <span className="text-[9px] uppercase tracking-widest text-muted">
               yours
@@ -263,7 +298,52 @@ function LevelRow({
             </span>
           )}
         </div>
-      </div>
+      </button>
+
+      {expanded && (
+        <div className="relative border-y border-border/70 bg-panel/60 px-2 py-[4px]">
+          {lvl.orderIds.map((id, i) => {
+            const txHash = txByOrder.get(id.toString());
+            const maker = lvl.makers[i];
+            const mine =
+              myAddress && maker.toLowerCase() === myAddress.toLowerCase();
+            return (
+              <div
+                key={String(id)}
+                className="flex items-center justify-between gap-2 py-[2px] text-[10px]"
+              >
+                <span className="num text-accent">#{String(id)}</span>
+                <a
+                  href={`${BSCSCAN}/address/${maker}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className={`num hover:underline ${mine ? 'text-accent' : 'text-subtext'}`}
+                  title={maker}
+                >
+                  {shortAddr(maker)}
+                  {mine ? ' · you' : ''}
+                </a>
+                {txHash ? (
+                  <a
+                    href={`${BSCSCAN}/tx/${txHash}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="num text-[9px] uppercase tracking-widest text-accent hover:underline"
+                  >
+                    tx ↗
+                  </a>
+                ) : (
+                  <span className="num text-[9px] uppercase tracking-widest text-muted">
+                    tx —
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

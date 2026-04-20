@@ -1,0 +1,30 @@
+{
+  "projectName": "ChainDesk",
+  "network": "BSC Testnet",
+  "contracts": [
+    {
+      "name": "LimitOrderBook",
+      "address": "0x3B933087c131B30a38fF9C85EE665209b7005751",
+      "explorerLink": "https://testnet.bscscan.com/address/0x3B933087c131B30a38fF9C85EE665209b7005751",
+      "description": "Permissionless limit order book. Escrows maker tokens, settles trades through PancakeSwap V2 when a crossable price is reached. Positive slippage is paid to the executor as a tip, replacing a private keeper network."
+    }
+  ],
+  "routerDependency": {
+    "name": "PancakeSwap V2 Router (BSC Testnet)",
+    "address": "0xD99D1c33F9fC3444f8101754aBC46c52416550D1",
+    "explorerLink": "https://testnet.bscscan.com/address/0xD99D1c33F9fC3444f8101754aBC46c52416550D1"
+  },
+  "defaultPair": {
+    "base": {
+      "symbol": "WBNB",
+      "address": "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd"
+    },
+    "quote": {
+      "symbol": "BUSD",
+      "address": "0x78867BbEeF44f2326bF8DDd1941a4439382EF2A7"
+    }
+  },
+  "deploymentTx": "0x00ed0de341b85a25702f2ece4b1f511bb2a05cf38cba699415391a8b77521adc",
+  "frontendUrl": "run locally via `cd web && npm run dev` (see docs/TECHNICAL.md)",
+  "notes": "No admin keys. No upgradability. No protocol fee. ReentrancyGuard on every mutating function. Does not support fee-on-transfer tokens or native BNB — wrap to WBNB first."
+}

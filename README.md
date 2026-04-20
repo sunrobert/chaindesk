@@ -1,113 +1,68 @@
-# ChainDesk — LimitOrderBook contract
+# ChainDesk
 
-The onchain piece of ChainDesk: a permissionless limit order book on BSC that settles through PancakeSwap V2.
+**A permissionless public limit order book for BSC — with a Bloomberg-style terminal UI and a Claude-powered market read.**
 
-## What it does
+Submitted for BNB Hack: US College Edition (Track 2 · DeFi & Financial Tools).
 
-Makers create a limit order by escrowing `tokenIn` and specifying the minimum `tokenOut` they'll accept. Anyone can call `executeOrder(orderId, path)` when the DEX price has crossed the limit. The maker receives exactly their `minAmountOut`; the executor pockets any positive slippage as a tip, which is the natural incentive that replaces a keeper network for the MVP.
+- **Deployed contract (BSC Testnet):** [`0x3B933087c131B30a38fF9C85EE665209b7005751`](https://testnet.bscscan.com/address/0x3B933087c131B30a38fF9C85EE665209b7005751)
+- **Deployment tx:** [`0x00ed…1adc`](https://testnet.bscscan.com/tx/0x00ed0de341b85a25702f2ece4b1f511bb2a05cf38cba699415391a8b77521adc)
+- **Machine-readable deployment record:** [`bsc.address`](./bsc.address)
 
-Three core functions:
+---
 
-- `createOrder(tokenIn, tokenOut, amountIn, minAmountOut, deadline)` — escrows tokens, emits `OrderCreated`.
-- `cancelOrder(orderId)` — maker-only, refunds escrow.
-- `executeOrder(orderId, path)` — public, swaps through PancakeSwap, settles.
+## What it is
 
-Two view helpers the frontend uses:
+A single ~200-line Solidity contract that lets anyone create, cancel, or execute a limit order against PancakeSwap V2. The maker gets exactly the price they asked for. The executor keeps any positive slippage as a tip. That tip is the whole incentive — there is no private keeper network, no admin key, no protocol fee.
 
-- `getOpenOrdersByPair(tokenIn, tokenOut)` — powers the live order overlay on the chart.
-- `getOrdersByMaker(maker)` — powers the "my orders" panel.
+On top of the contract, ChainDesk Terminal is a Next.js frontend that presents the public book as a professional trading interface: live ladder, chart with resting-order overlays, one-click "Execute All Crossable," an AI Market Read strip that synthesizes the onchain book + Binance spot + Polymarket crypto prediction markets via Claude Haiku, a Top Executors leaderboard, and the usual Bloomberg-terminal polish (F-key navigation, live block pulse, scrolling news ticker).
 
-## Setup
+## Why this structure
 
-You need [Foundry](https://book.getfoundry.sh/getting-started/installation) installed.
+This repository follows the [BNBChain hackathon project template](https://github.com/0xlucasliao/hackathon-starter-kit) so judges can evaluate quickly:
+
+| File / directory | What's inside |
+|---|---|
+| [`docs/PROJECT.md`](./docs/PROJECT.md) | Problem, solution, ecosystem impact, limitations, roadmap |
+| [`docs/TECHNICAL.md`](./docs/TECHNICAL.md) | Architecture diagrams, component breakdown, setup & run, demo guide |
+| [`docs/EXTRAS.md`](./docs/EXTRAS.md) | Optional demo video and presentation links |
+| [`bsc.address`](./bsc.address) | Machine-readable deployment record (JSON) |
+| [`src/`](./src) | Contract source (`LimitOrderBook.sol`) |
+| [`test/`](./test) | Foundry tests |
+| [`script/`](./script) | Foundry deploy script |
+| [`web/`](./web) | Next.js 14 terminal frontend + Claude Market Read route |
+
+## Quick start
 
 ```bash
-# 1. Initialize a foundry project (skip if you cloned this repo directly)
-forge init chaindesk --no-commit
+# 1. Clone
+git clone https://github.com/sunrobert/chaindesk
 cd chaindesk
 
-# 2. Drop the files from this project into place:
-#    src/LimitOrderBook.sol
-#    script/Deploy.s.sol
-#    test/LimitOrderBook.t.sol
-#    foundry.toml
-#    remappings.txt
-#    .env.example
-
-# 3. Install deps
-forge install OpenZeppelin/openzeppelin-contracts --no-commit
-forge install foundry-rs/forge-std --no-commit
-
-# 4. Build + test
+# 2. (Optional) Rebuild & test the contract
+forge install
 forge build
 forge test -vv
+
+# 3. Run the terminal locally
+cd web
+npm install
+cp .env.local.example .env.local   # optional: add ANTHROPIC_API_KEY for live MARKET READ
+npm run dev
+# open http://localhost:3000
 ```
 
-If tests pass, you're green to deploy.
+Full setup, deploy, and demo-run instructions are in [`docs/TECHNICAL.md`](./docs/TECHNICAL.md).
 
-## Deploy
+## Judging rubric cross-reference
 
-```bash
-# 1. Configure env
-cp .env.example .env
-# Fill in PRIVATE_KEY. For testnet, use a throwaway wallet funded from
-# https://www.bnbchain.org/en/testnet-faucet
+| Criterion | Weight | Where to verify |
+|---|---|---|
+| Technical execution — "is the onchain piece real?" | 30% | [Deployed contract](https://testnet.bscscan.com/address/0x3B933087c131B30a38fF9C85EE665209b7005751) · [`src/LimitOrderBook.sol`](./src/LimitOrderBook.sol) · [`test/LimitOrderBook.t.sol`](./test) |
+| Originality | 25% | Permissionless book as public good + executor-tip incentive (no private keepers). AI Market Read synthesizing onchain + Binance + Polymarket. See [`docs/PROJECT.md §2`](./docs/PROJECT.md) |
+| Real-world relevance | 25% | BSC has no native on-AMM limit orders. Target users and adoption path in [`docs/PROJECT.md §3`](./docs/PROJECT.md) |
+| Demo & presentation | 10% | [`docs/TECHNICAL.md §3`](./docs/TECHNICAL.md) demo guide; terminal runs locally |
+| Builder profile | 10% | Commit history on the repo's main branch |
 
-# 2. Load env
-source .env
+## License
 
-# 3. Deploy to BSC testnet
-forge script script/Deploy.s.sol:Deploy \
-    --rpc-url $BSC_TESTNET_RPC \
-    --broadcast \
-    --private-key $PRIVATE_KEY \
-    -vvv
-
-# The console will print the deployed address. Save it - the frontend needs it.
-```
-
-For **mainnet** (recommended for the demo — real liquidity, real tx hashes, costs ~$0.10 in BNB):
-
-```bash
-forge script script/Deploy.s.sol:Deploy \
-    --rpc-url $BSC_MAINNET_RPC \
-    --broadcast \
-    --private-key $PRIVATE_KEY \
-    -vvv
-```
-
-### Verify on BscScan (optional, adds credibility to the demo)
-
-```bash
-forge verify-contract \
-    --chain-id 56 \
-    --num-of-optimizations 200 \
-    --watch \
-    --constructor-args $(cast abi-encode "constructor(address)" 0x10ED43C718714eb63d5aA57B78B54704E256024E) \
-    --etherscan-api-key $BSCSCAN_API_KEY \
-    --compiler-version v0.8.24+commit.e11b9ed9 \
-    <DEPLOYED_ADDRESS> \
-    src/LimitOrderBook.sol:LimitOrderBook
-```
-
-For testnet, swap `--chain-id 56` → `97` and the constructor arg → `0xD99D1c33F9fC3444f8101754aBC46c52416550D1`.
-
-## Hackathon submission checklist
-
-- [x] Contract deployed on BSC (testnet or mainnet) — **save the address**
-- [ ] At least one `createOrder` tx hash saved — **save the hash**
-- [ ] At least one `executeOrder` tx hash saved (do a real swap!) — **save the hash**
-- [ ] Public repo with this code — **add to DoraHacks submission**
-- [ ] Demo video showing the terminal in action — **record last**
-
-## Security notes (for the README / pitch)
-
-This is a 4-week hackathon build, not a production protocol. Known limitations:
-
-- No support for fee-on-transfer tokens (would miscount escrow).
-- No multi-fill (each order is all-or-nothing).
-- No protocol fee.
-- Gas-unbounded view functions could OOG at very high order counts per pair.
-- Not audited. Don't put life savings in it.
-
-The contract uses `ReentrancyGuard`, OZ `SafeERC20`, and the checks-effects-interactions pattern. It's small enough (~200 lines) to read end-to-end in ten minutes.
+MIT — do whatever you want. Don't put life savings in testnet contracts.
