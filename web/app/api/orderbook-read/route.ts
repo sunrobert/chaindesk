@@ -92,7 +92,8 @@ async function fetchPolymarket(): Promise<PolymarketRow[]> {
   }
 }
 
-function formatOrder(o: OnchainOrder): {
+function formatOrder(o: OnchainOrder, id: bigint): {
+  id: string;
   price: number;
   sizeWbnb: number;
   side: 'buy' | 'sell';
@@ -105,6 +106,7 @@ function formatOrder(o: OnchainOrder): {
   const price = isSell ? minOut / amountIn : amountIn / minOut;
   const sizeWbnb = isSell ? amountIn : minOut;
   return {
+    id: id.toString(),
     price,
     sizeWbnb,
     side: isSell ? 'sell' : 'buy',
@@ -172,14 +174,26 @@ export async function GET() {
     fetchPolymarket(),
   ]);
 
-  const rawOrders = ordersResult
+  const rawIds: bigint[] = ordersResult
+    ? ((ordersResult as [bigint[], OnchainOrder[]])[0] ?? [])
+    : [];
+  const rawOrders: OnchainOrder[] = ordersResult
     ? ((ordersResult as [bigint[], OnchainOrder[]])[1] ?? [])
     : [];
   const formatted = rawOrders
-    .map(formatOrder)
+    .map((o, i) => formatOrder(o, rawIds[i] ?? 0n))
     .filter((o) => Number.isFinite(o.price) && o.price > 0)
     .sort((a, b) => a.price - b.price)
     .slice(0, 20);
+
+  // Flag up to 3 orders "most likely to execute next" — the ones closest to
+  // spot. This is what the AI banner highlights as "executable now."
+  const flaggedOrderIds: string[] = spot
+    ? [...formatted]
+        .sort((a, b) => Math.abs(a.price - spot) - Math.abs(b.price - spot))
+        .slice(0, 3)
+        .map((o) => o.id)
+    : [];
 
   const orderLines = formatted.length
     ? formatted
@@ -265,6 +279,7 @@ Produce the market read now.`;
   return NextResponse.json({
     read,
     updatedAt: Math.floor(Date.now() / 1000),
+    flaggedOrderIds,
     sources: {
       orderbook: formatted.length,
       predictionMarkets: predictionMarkets.map((m) => m.question),

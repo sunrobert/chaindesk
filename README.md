@@ -12,9 +12,11 @@ Submitted for BNB Hack: US College Edition (Track 2 · DeFi & Financial Tools).
 
 ## What it is
 
-A single ~200-line Solidity contract that lets anyone create, cancel, or execute a limit order against PancakeSwap V2. The maker gets exactly the price they asked for. The executor keeps any positive slippage as a tip. That tip is the whole incentive — there is no private keeper network, no admin key, no protocol fee.
+A resting limit order on 1inch or CoW is invisible to the next smart contract. A resting limit order on ChainDesk is callable by any protocol in the same transaction. That's the primitive — a permissionless public limit order book, on BSC, that other protocols can compose against instead of integrating a private keeper API.
 
-On top of the contract, ChainDesk Terminal is a Next.js frontend that presents the public book as a professional trading interface: live ladder, chart with resting-order overlays, one-click "Execute All Crossable," an AI Market Read strip that synthesizes the onchain book + Binance spot + Polymarket crypto prediction markets via Claude Haiku, a Top Executors leaderboard, and the usual Bloomberg-terminal polish (F-key navigation, live block pulse, scrolling news ticker).
+One ~200-line Solidity contract lets anyone create, cancel, or execute a limit order against PancakeSwap V2. Makers get exactly the price they asked for. Executors keep positive slippage as a tip. That tip is the whole incentive — no private keeper network, no admin key, no protocol fee.
+
+On top of the contract, ChainDesk Terminal is a Next.js frontend that presents the public book as a professional trading interface: live ladder, chart with resting-order overlays, one-click "Execute All Crossable" (so judges can be the executor themselves on a fresh testnet), an AI Market Read strip that synthesizes the onchain book + Binance spot + Polymarket crypto prediction markets via Claude Haiku and flags specific orders it thinks are executable right now, a Top Executors leaderboard, and the usual Bloomberg-terminal polish (F-key navigation, live block pulse, scrolling news ticker).
 
 ## Why this structure
 

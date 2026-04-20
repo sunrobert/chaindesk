@@ -8,6 +8,7 @@ import { BASE, QUOTE, CONTRACT_ADDRESS, BSCSCAN } from '@/lib/constants';
 import { useOpenOrders } from '@/hooks/useOpenOrders';
 import { useRefPrice } from '@/hooks/useRefPrice';
 import { useOrderTxHashes } from '@/hooks/useOrderTxHashes';
+import { useMarketRead } from '@/hooks/useMarketRead';
 import { buildBook, isCrossable, type BookLevel } from '@/lib/book';
 import { formatPrice, formatSize, shortAddr } from '@/lib/price';
 
@@ -18,6 +19,11 @@ export function BookLadder() {
   const { orders } = useOpenOrders();
   const ref = useRefPrice();
   const txByOrder = useOrderTxHashes();
+  const marketRead = useMarketRead();
+  const flaggedIds = useMemo(
+    () => new Set(marketRead.data?.flaggedOrderIds ?? []),
+    [marketRead.data],
+  );
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   const { asks, bids } = useMemo(() => buildBook(orders), [orders]);
@@ -142,6 +148,7 @@ export function BookLadder() {
             pendingKey={pendingKey}
             isExecuting={execute.isPending || receipt.isLoading}
             txByOrder={txByOrder}
+            flaggedIds={flaggedIds}
             expanded={expandedKey === `sell-${lvl.price}`}
             onToggle={() =>
               setExpandedKey((k) =>
@@ -193,6 +200,7 @@ export function BookLadder() {
             pendingKey={pendingKey}
             isExecuting={execute.isPending || receipt.isLoading}
             txByOrder={txByOrder}
+            flaggedIds={flaggedIds}
             expanded={expandedKey === `buy-${lvl.price}`}
             onToggle={() =>
               setExpandedKey((k) =>
@@ -226,6 +234,7 @@ function LevelRow({
   pendingKey,
   isExecuting,
   txByOrder,
+  flaggedIds,
   expanded,
   onToggle,
 }: {
@@ -237,9 +246,11 @@ function LevelRow({
   pendingKey: string | null;
   isExecuting: boolean;
   txByOrder: Map<string, `0x${string}`>;
+  flaggedIds: Set<string>;
   expanded: boolean;
   onToggle: () => void;
 }) {
+  const aiFlagged = lvl.orderIds.some((id) => flaggedIds.has(id.toString()));
   // Width of background bar (simple per-level proportion, not cumulative)
   const barPct = Math.min(100, (lvl.size / maxCum) * 100);
   const crossable = isCrossable(lvl.side, lvl.price, refPrice);
@@ -268,6 +279,14 @@ function LevelRow({
         <span className={`num ${color}`}>{formatPrice(lvl.price)}</span>
         <span className="num text-right text-text">{formatSize(lvl.size)}</span>
         <span className="num text-right text-muted">
+          {aiFlagged ? (
+            <span
+              title="Claude flagged orders on this level as executable right now"
+              className="mr-1 inline-block bg-accent px-[3px] text-[8px] font-semibold uppercase tracking-widest text-bg"
+            >
+              ★ AI
+            </span>
+          ) : null}
           <span className="underline decoration-dotted decoration-muted/60 underline-offset-2">
             {lvl.orderIds.length}
           </span>

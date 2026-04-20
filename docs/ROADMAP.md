@@ -2,7 +2,9 @@
 
 This is what ChainDesk looks like after the BNB Hack submission window closes. The goal is a credible path from "working testnet demo" to "durable DeFi primitive on BSC mainnet."
 
-Each phase has a concrete deliverable and a success metric so progress is legible to contributors and prospective integrators.
+Each phase has a concrete deliverable, a target date, and a success metric so progress is legible to contributors and prospective integrators.
+
+**Headline dates:** external audit June 2026 · BSC mainnet deployment July 2026 · executor SDK + reference bot Q3 2026.
 
 ---
 
@@ -14,7 +16,7 @@ Each phase has a concrete deliverable and a success metric so progress is legibl
 
 ---
 
-## Phase 1 — Harden for mainnet (weeks 1-4)
+## Phase 1 — Harden for mainnet (weeks 1-4, target: May 2026)
 
 The contract is intentionally small, but "small" is not the same as "audited." Before a single real dollar touches this book, the code needs external eyes.
 
@@ -27,7 +29,7 @@ The contract is intentionally small, but "small" is not the same as "audited." B
 
 ---
 
-## Phase 2 — BSC mainnet launch (weeks 5-8)
+## Phase 2 — BSC mainnet launch (weeks 5-8, target deployment: July 2026)
 
 - **Mainnet deployment** of the audited contract at a vanity address, with deployment tx permanently linked from the README and `bsc.address`.
 - **Subgraph (The Graph).** Today the frontend scans logs client-side with a 200k-block lookback. A subgraph removes that ceiling, lets us render full historical charts of executed tips, and powers cross-device "My Orders" without a wallet connection.
@@ -38,7 +40,7 @@ The contract is intentionally small, but "small" is not the same as "audited." B
 
 ---
 
-## Phase 3 — Executor ecosystem (weeks 9-16)
+## Phase 3 — Executor ecosystem (weeks 9-16, Q3 2026)
 
 The executor-tip mechanic only works if executors show up. That's a cold-start problem worth solving deliberately rather than hoping.
 

@@ -16,7 +16,7 @@ flowchart TB
         UI[ChainDesk Terminal<br/>Next.js + wagmi]
     end
     subgraph Server
-        API[/api/orderbook-read<br/>Next.js Route]
+        API["/api/orderbook-read<br/>Next.js Route"]
     end
     subgraph BSC
         LOB[LimitOrderBook.sol]

@@ -67,13 +67,8 @@ contract LimitOrderBookTest is Test {
 
     function test_CancelOrder_RefundsMaker() public {
         vm.startPrank(alice);
-        uint256 orderId = book.createOrder(
-            address(tokenA),
-            address(tokenB),
-            100e18,
-            50e18,
-            uint64(block.timestamp + 1 hours)
-        );
+        uint256 orderId =
+            book.createOrder(address(tokenA), address(tokenB), 100e18, 50e18, uint64(block.timestamp + 1 hours));
 
         uint256 balBefore = tokenA.balanceOf(alice);
         book.cancelOrder(orderId);
@@ -82,19 +77,14 @@ contract LimitOrderBookTest is Test {
 
         assertEq(balAfter - balBefore, 100e18, "maker fully refunded");
 
-        (, , bool active, , , , ) = book.orders(orderId);
+        (,, bool active,,,,) = book.orders(orderId);
         assertFalse(active, "order should be inactive after cancel");
     }
 
     function test_Cancel_RevertsIfNotMaker() public {
         vm.prank(alice);
-        uint256 orderId = book.createOrder(
-            address(tokenA),
-            address(tokenB),
-            100e18,
-            50e18,
-            uint64(block.timestamp + 1 hours)
-        );
+        uint256 orderId =
+            book.createOrder(address(tokenA), address(tokenB), 100e18, 50e18, uint64(block.timestamp + 1 hours));
 
         vm.expectRevert(LimitOrderBook.NotMaker.selector);
         book.cancelOrder(orderId);
@@ -121,8 +111,10 @@ contract LimitOrderBookTest is Test {
 
     function test_GetOpenOrdersByPair_FiltersInactive() public {
         vm.startPrank(alice);
-        uint256 id1 = book.createOrder(address(tokenA), address(tokenB), 100e18, 50e18, uint64(block.timestamp + 1 hours));
-        uint256 id2 = book.createOrder(address(tokenA), address(tokenB), 200e18, 90e18, uint64(block.timestamp + 1 hours));
+        uint256 id1 =
+            book.createOrder(address(tokenA), address(tokenB), 100e18, 50e18, uint64(block.timestamp + 1 hours));
+        uint256 id2 =
+            book.createOrder(address(tokenA), address(tokenB), 200e18, 90e18, uint64(block.timestamp + 1 hours));
         book.cancelOrder(id1);
         vm.stopPrank();
 

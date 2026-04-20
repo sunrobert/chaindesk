@@ -37,13 +37,13 @@ contract LimitOrderBook is ReentrancyGuard {
     // ---------------------------------------------------------------------
 
     struct Order {
-        address maker;           // slot 0: 20 + 8 + 1 = 29 bytes packed
+        address maker; // slot 0: 20 + 8 + 1 = 29 bytes packed
         uint64 deadline;
         bool active;
-        address tokenIn;         // slot 1
-        address tokenOut;        // slot 2
-        uint256 amountIn;        // slot 3
-        uint256 minAmountOut;    // slot 4
+        address tokenIn; // slot 1
+        address tokenOut; // slot 2
+        uint256 amountIn; // slot 3
+        uint256 minAmountOut; // slot 4
     }
 
     // ---------------------------------------------------------------------
@@ -77,12 +77,7 @@ contract LimitOrderBook is ReentrancyGuard {
 
     event OrderCancelled(uint256 indexed orderId, address indexed maker);
 
-    event OrderExecuted(
-        uint256 indexed orderId,
-        address indexed executor,
-        uint256 amountOut,
-        uint256 executorTip
-    );
+    event OrderExecuted(uint256 indexed orderId, address indexed executor, uint256 amountOut, uint256 executorTip);
 
     // ---------------------------------------------------------------------
     // Errors
@@ -117,13 +112,11 @@ contract LimitOrderBook is ReentrancyGuard {
      * @dev Caller must have approved at least `amountIn` of `tokenIn` to this contract.
      *      The implicit limit price is `minAmountOut / amountIn`.
      */
-    function createOrder(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn,
-        uint256 minAmountOut,
-        uint64 deadline
-    ) external nonReentrant returns (uint256 orderId) {
+    function createOrder(address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, uint64 deadline)
+        external
+        nonReentrant
+        returns (uint256 orderId)
+    {
         if (amountIn == 0 || minAmountOut == 0) revert InvalidAmount();
         if (tokenIn == tokenOut || tokenIn == address(0) || tokenOut == address(0)) revert InvalidPair();
         if (deadline <= block.timestamp) revert OrderExpired();
@@ -203,13 +196,7 @@ contract LimitOrderBook is ReentrancyGuard {
         // Measure output by balance delta (defensive against weird tokens)
         uint256 balanceBefore = IERC20(tokenOut).balanceOf(address(this));
 
-        router.swapExactTokensForTokens(
-            amountIn,
-            minAmountOut,
-            path,
-            address(this),
-            block.timestamp + 60
-        );
+        router.swapExactTokensForTokens(amountIn, minAmountOut, path, address(this), block.timestamp + 60);
 
         uint256 amountOut = IERC20(tokenOut).balanceOf(address(this)) - balanceBefore;
         if (amountOut < minAmountOut) revert InsufficientOutput();
@@ -246,7 +233,9 @@ contract LimitOrderBook is ReentrancyGuard {
         for (uint256 i; i < len; ++i) {
             Order storage o = orders[ids[i]];
             if (o.active && o.deadline > block.timestamp) {
-                unchecked { ++count; }
+                unchecked {
+                    ++count;
+                }
             }
         }
 
@@ -259,7 +248,9 @@ contract LimitOrderBook is ReentrancyGuard {
             if (o.active && o.deadline > block.timestamp) {
                 activeIds[j] = ids[i];
                 activeOrders[j] = o;
-                unchecked { ++j; }
+                unchecked {
+                    ++j;
+                }
             }
         }
     }
@@ -268,11 +259,7 @@ contract LimitOrderBook is ReentrancyGuard {
      * @notice Fetch all orders (active + historical) created by a maker.
      *         Used by the "My Orders" UI panel.
      */
-    function getOrdersByMaker(address maker)
-        external
-        view
-        returns (uint256[] memory ids, Order[] memory makerOrders)
-    {
+    function getOrdersByMaker(address maker) external view returns (uint256[] memory ids, Order[] memory makerOrders) {
         ids = _ordersByMaker[maker];
         uint256 len = ids.length;
         makerOrders = new Order[](len);

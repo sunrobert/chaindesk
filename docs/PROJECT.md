@@ -53,6 +53,8 @@ On top of that primitive, the frontend (ChainDesk Terminal) is a Bloomberg-style
 
 ChainDesk makes the book itself a public good. Execution economics are open. Anyone can be the keeper. There is no admin key.
 
+**The structural win over 1inch / CoW:** a limit order that lives in an off-chain RFQ database is invisible to the next smart contract. A ChainDesk order is on-chain state — any protocol (a vault rebalancer, a liquidation engine, a cross-pair arb router) can read it with `eth_call` and execute against it in the same transaction. That is a thing private keeper networks structurally cannot offer, and it's the real reason the orderbook belongs on-chain.
+
 ## 3. Business & Ecosystem Impact
 
 **Target users:**
