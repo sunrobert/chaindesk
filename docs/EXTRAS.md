@@ -2,11 +2,9 @@
 
 The README and `docs/TECHNICAL.md` are the authoritative source of truth for judging. The video and slides below are supplementary — they exist to make the project easier to pitch, not easier to verify.
 
-- **Demo video** — *(to be added — link goes here once recorded)*
-  Link: 
+- **Demo video** — *to be added once recorded*
 
-- **Slide deck** — *(not planned — the docs serve this role. If requested for finalist round we'll add here.)*
-  Link:
+- **Slide deck** — *not planned; `README.md` + `docs/` serve this role. If requested for the finalist round, we will add one here.*
 
 ## Live artifacts that stand in for slides
 

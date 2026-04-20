@@ -25,6 +25,8 @@ This repository follows the [BNBChain hackathon project template](https://github
 | [`docs/PROJECT.md`](./docs/PROJECT.md) | Problem, solution, ecosystem impact, limitations, roadmap |
 | [`docs/TECHNICAL.md`](./docs/TECHNICAL.md) | Architecture diagrams, component breakdown, setup & run, demo guide |
 | [`docs/EXTRAS.md`](./docs/EXTRAS.md) | Optional demo video and presentation links |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Module-level deep dive: repo layout, stack, contract storage, ABI, schemas |
+| [`docs/ROADMAP.md`](./docs/ROADMAP.md) | Post-hackathon phased plan: audit → mainnet → executor ecosystem |
 | [`bsc.address`](./bsc.address) | Machine-readable deployment record (JSON) |
 | [`src/`](./src) | Contract source (`LimitOrderBook.sol`) |
 | [`test/`](./test) | Foundry tests |
