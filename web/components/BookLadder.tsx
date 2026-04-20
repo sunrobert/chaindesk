@@ -1,0 +1,211 @@
+'use client';
+
+import { useMemo } from 'react';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useState, useEffect } from 'react';
+import { limitOrderBookAbi } from '@/lib/abi';
+import { BASE, QUOTE, CONTRACT_ADDRESS } from '@/lib/constants';
+import { useOpenOrders } from '@/hooks/useOpenOrders';
+import { useRefPrice } from '@/hooks/useRefPrice';
+import { buildBook, isCrossable, type BookLevel } from '@/lib/book';
+import { formatPrice, formatSize } from '@/lib/price';
+
+const MAX_LEVELS = 12; // per side
+
+export function BookLadder() {
+  const { address } = useAccount();
+  const { orders } = useOpenOrders();
+  const ref = useRefPrice();
+
+  const { asks, bids } = useMemo(() => buildBook(orders), [orders]);
+  const askSlice = asks.slice(0, MAX_LEVELS).reverse(); // best ask at bottom
+  const bidSlice = bids.slice(0, MAX_LEVELS);
+
+  // Cumulative depth for bar width visualization
+  const maxCum = useMemo(() => {
+    let aCum = 0;
+    let bCum = 0;
+    for (const l of asks.slice(0, MAX_LEVELS)) aCum = Math.max(aCum, (aCum += l.size));
+    for (const l of bids.slice(0, MAX_LEVELS)) bCum = Math.max(bCum, (bCum += l.size));
+    // recompute properly
+    let a = 0, b = 0, m = 0;
+    for (const l of asks.slice(0, MAX_LEVELS)) { a += l.size; if (a > m) m = a; }
+    for (const l of bids.slice(0, MAX_LEVELS)) { b += l.size; if (b > m) m = b; }
+    return m || 1;
+  }, [asks, bids]);
+
+  const execute = useWriteContract();
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const receipt = useWaitForTransactionReceipt({ hash: execute.data });
+
+  useEffect(() => {
+    if (receipt.isSuccess) setPendingKey(null);
+  }, [receipt.isSuccess]);
+
+  const onExecute = (level: BookLevel) => {
+    // Take the FIRST order at this level. Simple path via direct pair.
+    const orderId = level.orderIds[0];
+    const tokenIn = level.side === 'sell' ? BASE.address : QUOTE.address;
+    const tokenOut = level.side === 'sell' ? QUOTE.address : BASE.address;
+    const path = [tokenIn, tokenOut];
+    setPendingKey(`${level.side}-${String(orderId)}`);
+    execute.writeContract({
+      address: CONTRACT_ADDRESS,
+      abi: limitOrderBookAbi,
+      functionName: 'executeOrder',
+      args: [orderId, path],
+    });
+  };
+
+  const bestAsk = asks[0]?.price;
+  const bestBid = bids[0]?.price;
+  const spread =
+    bestAsk != null && bestBid != null
+      ? (bestAsk - bestBid).toFixed(4)
+      : '——';
+  const spreadPct =
+    bestAsk != null && bestBid != null && bestAsk > 0
+      ? `${((bestAsk - bestBid) / bestAsk * 100).toFixed(2)}%`
+      : '——';
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-bg">
+      <Header />
+
+      {/* ASKS (sells) — rendered top→bottom with best ask at the bottom */}
+      <div className="flex-1 min-h-0 overflow-auto">
+        {askSlice.length === 0 && (
+          <Empty text="No sell orders." />
+        )}
+        {askSlice.map((lvl) => (
+          <LevelRow
+            key={`sell-${lvl.price}`}
+            lvl={lvl}
+            maxCum={maxCum}
+            myAddress={address}
+            refPrice={ref}
+            onExecute={onExecute}
+            pendingKey={pendingKey}
+            isExecuting={execute.isPending || receipt.isLoading}
+          />
+        ))}
+      </div>
+
+      {/* SPREAD row */}
+      <div className="flex items-center justify-between border-y border-border bg-panel px-2 py-[5px] text-[10px]">
+        <span className="text-muted">REF</span>
+        <span className="num text-accent">
+          {ref != null ? formatPrice(ref) : '——'}
+        </span>
+        <span className="text-muted">SPREAD</span>
+        <span className="num text-subtext">
+          {spread} · {spreadPct}
+        </span>
+      </div>
+
+      {/* BIDS (buys) */}
+      <div className="flex-1 min-h-0 overflow-auto">
+        {bidSlice.length === 0 && (
+          <Empty text="No buy orders." />
+        )}
+        {bidSlice.map((lvl) => (
+          <LevelRow
+            key={`buy-${lvl.price}`}
+            lvl={lvl}
+            maxCum={maxCum}
+            myAddress={address}
+            refPrice={ref}
+            onExecute={onExecute}
+            pendingKey={pendingKey}
+            isExecuting={execute.isPending || receipt.isLoading}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Header() {
+  return (
+    <div className="sticky top-0 z-10 grid grid-cols-[1fr_1fr_1fr_auto] gap-2 border-b border-border bg-panel px-2 py-[4px] text-[9px] uppercase tracking-widest text-muted">
+      <span>Price</span>
+      <span className="text-right">Size</span>
+      <span className="text-right">Orders</span>
+      <span className="w-[54px] text-right">Exec</span>
+    </div>
+  );
+}
+
+function LevelRow({
+  lvl,
+  maxCum,
+  myAddress,
+  refPrice,
+  onExecute,
+  pendingKey,
+  isExecuting,
+}: {
+  lvl: BookLevel;
+  maxCum: number;
+  myAddress?: `0x${string}`;
+  refPrice: number | null;
+  onExecute: (l: BookLevel) => void;
+  pendingKey: string | null;
+  isExecuting: boolean;
+}) {
+  // Width of background bar (simple per-level proportion, not cumulative)
+  const barPct = Math.min(100, (lvl.size / maxCum) * 100);
+  const crossable = isCrossable(lvl.side, lvl.price, refPrice);
+  const isMine =
+    myAddress &&
+    lvl.makers.some((m) => m.toLowerCase() === myAddress.toLowerCase());
+  const key = `${lvl.side}-${String(lvl.orderIds[0])}`;
+  const pending = pendingKey === key && isExecuting;
+  const color = lvl.side === 'sell' ? 'text-sell' : 'text-buy';
+  const bg =
+    lvl.side === 'sell'
+      ? 'from-sell/20 to-sell/5'
+      : 'from-buy/20 to-buy/5';
+
+  return (
+    <div className="relative">
+      <div
+        className={`absolute inset-y-0 right-0 bg-gradient-to-l ${bg}`}
+        style={{ width: `${barPct}%` }}
+      />
+      <div className="relative grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-2 px-2 py-[3px] text-[11px] hover:bg-panel">
+        <span className={`num ${color}`}>{formatPrice(lvl.price)}</span>
+        <span className="num text-right text-text">{formatSize(lvl.size)}</span>
+        <span className="num text-right text-muted">
+          {lvl.orderIds.length}
+          {isMine ? <span className="ml-1 text-accent">●</span> : null}
+        </span>
+        <div className="w-[54px] text-right">
+          {crossable && !isMine ? (
+            <button
+              onClick={() => onExecute(lvl)}
+              disabled={isExecuting}
+              className="border border-accent bg-accent/10 px-1 py-[1px] text-[9px] font-semibold uppercase tracking-widest text-accent hover:bg-accent/20 disabled:opacity-40"
+            >
+              {pending ? '…' : 'exec'}
+            </button>
+          ) : isMine ? (
+            <span className="text-[9px] uppercase tracking-widest text-muted">
+              yours
+            </span>
+          ) : (
+            <span className="text-[9px] uppercase tracking-widest text-muted">
+              —
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return (
+    <div className="px-3 py-6 text-center text-[11px] text-muted">{text}</div>
+  );
+}

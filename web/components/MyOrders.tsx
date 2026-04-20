@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { limitOrderBookAbi } from '@/lib/abi';
 import { CONTRACT_ADDRESS } from '@/lib/constants';
 import { useMyOrders } from '@/hooks/useMyOrders';
+import { useRefPrice } from '@/hooks/useRefPrice';
 import {
   formatPrice,
   formatSize,
@@ -16,6 +17,7 @@ import {
 export function MyOrders() {
   const { isConnected } = useAccount();
   const { orders } = useMyOrders();
+  const ref = useRefPrice();
   const cancel = useWriteContract();
   const [pendingId, setPendingId] = useState<bigint | null>(null);
   const cancelReceipt = useWaitForTransactionReceipt({ hash: cancel.data });
@@ -24,37 +26,34 @@ export function MyOrders() {
     if (cancelReceipt.isSuccess) setPendingId(null);
   }, [cancelReceipt.isSuccess]);
 
-  const active = orders.filter((o) => {
-    const live =
-      o.order.active &&
-      Number(o.order.deadline) > Math.floor(Date.now() / 1000);
-    return live;
-  });
-  const history = orders.filter((o) => {
-    const live =
-      o.order.active &&
-      Number(o.order.deadline) > Math.floor(Date.now() / 1000);
-    return !live;
-  });
+  const active = orders.filter(
+    (o) => o.order.active && Number(o.order.deadline) > Math.floor(Date.now() / 1000),
+  );
+  const history = orders.filter(
+    (o) =>
+      !(o.order.active && Number(o.order.deadline) > Math.floor(Date.now() / 1000)),
+  );
 
   if (!isConnected) {
     return (
-      <EmptyState text="Connect wallet to see your orders." />
+      <Empty text="Connect wallet to see your orders." />
     );
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-bg">
       <Section label={`ACTIVE · ${active.length}`}>
         {active.length === 0 ? (
-          <EmptyState text="No active orders. Place one on the right." />
+          <Empty text="No active orders." />
         ) : (
           active.map(({ id, order }) => {
             const side = orderSide(order);
             const price = orderLimitPrice(order);
             const size = orderBaseSize(order);
             if (!side || price == null || size == null) return null;
-            const pending = pendingId === id && (cancel.isPending || cancelReceipt.isLoading);
+            const pending =
+              pendingId === id &&
+              (cancel.isPending || cancelReceipt.isLoading);
             return (
               <Row
                 key={String(id)}
@@ -64,6 +63,7 @@ export function MyOrders() {
                 size={size}
                 deadline={Number(order.deadline)}
                 isActive
+                refPrice={ref}
                 onCancel={() => {
                   setPendingId(id);
                   cancel.writeContract({
@@ -82,7 +82,7 @@ export function MyOrders() {
 
       <Section label={`HISTORY · ${history.length}`}>
         {history.length === 0 ? (
-          <EmptyState text="No history yet." />
+          <Empty text="No history." />
         ) : (
           history.map(({ id, order }) => {
             const side = orderSide(order);
@@ -116,7 +116,7 @@ function Section({
 }) {
   return (
     <div>
-      <div className="sticky top-0 z-10 border-b border-border bg-panel px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-subtext">
+      <div className="sticky top-0 z-10 border-b border-border bg-panel px-2 py-[4px] text-[9px] font-semibold uppercase tracking-widest text-muted">
         {label}
       </div>
       <div>{children}</div>
@@ -131,6 +131,7 @@ function Row({
   size,
   deadline,
   isActive,
+  refPrice,
   onCancel,
   cancelPending,
 }: {
@@ -140,32 +141,63 @@ function Row({
   size: number;
   deadline: number;
   isActive: boolean;
+  refPrice?: number | null;
   onCancel?: () => void;
   cancelPending?: boolean;
 }) {
   const now = Math.floor(Date.now() / 1000);
   const ttl = deadline - now;
+  // Distance-to-fill: positive = needs to move in maker's favor to cross.
+  //   SELL crosses when market >= limit: distance = (limit - ref)/ref (>0 = above market)
+  //   BUY  crosses when market <= limit: distance = (ref - limit)/ref (>0 = below market)
+  let distPct: number | null = null;
+  if (isActive && refPrice != null && refPrice > 0) {
+    distPct =
+      side === 'sell'
+        ? ((price - refPrice) / refPrice) * 100
+        : ((refPrice - price) / refPrice) * 100;
+  }
   return (
-    <div className="flex items-center gap-2 border-b border-border/60 px-3 py-[6px] text-[11px] tab-nums">
+    <div className="group flex items-center gap-2 border-b border-border/60 px-2 py-[6px] text-[11px] hover:bg-panel">
       <span
-        className={`w-10 font-semibold ${
-          side === 'buy' ? 'text-buy' : 'text-sell'
-        }`}
-      >
-        {side.toUpperCase()}
-      </span>
-      <span className="w-16 text-text">{formatSize(size)}</span>
-      <span className="w-16 text-subtext">@</span>
-      <span className="w-20 text-text">{formatPrice(price)}</span>
-      <span className="flex-1 text-subtext">
-        {isActive ? fmtTtl(ttl) : 'closed'}
-      </span>
-      <span className="w-10 text-subtext">#{String(id)}</span>
+        className={`w-1 self-stretch ${side === 'buy' ? 'bg-buy' : 'bg-sell'}`}
+      />
+      <div className="flex min-w-0 flex-1 flex-col leading-tight">
+        <div className="flex items-center justify-between">
+          <span
+            className={`text-[10px] font-semibold tracking-widest ${side === 'buy' ? 'text-buy' : 'text-sell'}`}
+          >
+            {side.toUpperCase()}
+          </span>
+          <span className="num text-text">{formatPrice(price)}</span>
+        </div>
+        <div className="flex items-center justify-between text-muted">
+          <span className="num text-[10px]">
+            {formatSize(size)} · #{String(id)}
+          </span>
+          <span className="num text-[10px]">
+            {isActive ? fmtTtl(ttl) : 'closed'}
+          </span>
+        </div>
+        {distPct != null && (
+          <div className="flex justify-end">
+            <span
+              className={`num text-[9px] ${
+                distPct <= 0 ? 'text-accent' : 'text-muted'
+              }`}
+            >
+              {distPct <= 0 ? 'CROSSABLE · ' : ''}
+              {distPct >= 0 ? '+' : ''}
+              {distPct.toFixed(2)}% to fill
+            </span>
+          </div>
+        )}
+      </div>
       {isActive && onCancel ? (
         <button
           onClick={onCancel}
           disabled={cancelPending}
-          className="rounded border border-border bg-panel2 px-2 py-[2px] text-[10px] text-subtext hover:text-text disabled:opacity-40"
+          className="hidden border border-border bg-panel2 px-2 py-[2px] text-[10px] uppercase tracking-widest text-subtext hover:text-sell group-hover:block disabled:opacity-40"
         >
           {cancelPending ? '…' : 'cancel'}
         </button>
@@ -174,9 +206,9 @@ function Row({
   );
 }
 
-function EmptyState({ text }: { text: string }) {
+function Empty({ text }: { text: string }) {
   return (
-    <div className="px-3 py-6 text-center text-[11px] text-subtext">
+    <div className="px-3 py-6 text-center text-[11px] text-muted">
       {text}
     </div>
   );

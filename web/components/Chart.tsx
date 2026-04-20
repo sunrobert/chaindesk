@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   createChart,
   ColorType,
@@ -9,31 +9,40 @@ import {
   type IChartApi,
   type ISeriesApi,
   type IPriceLine,
+  type SeriesMarker,
+  type Time,
   type UTCTimestamp,
 } from 'lightweight-charts';
 import { fetchCandles } from '@/lib/binance';
-import { CANDLE_POLL_MS } from '@/lib/constants';
+import { BASE, CANDLE_POLL_MS } from '@/lib/constants';
 import { useOpenOrders } from '@/hooks/useOpenOrders';
+import { useRecentFills } from '@/hooks/useRecentFills';
 import {
   orderBaseSize,
   orderLimitPrice,
   orderSide,
-  formatPrice,
   formatSize,
 } from '@/lib/price';
 
+const BASE_SYM = BASE.symbol;
+
+export type TimeframeId = '1m' | '5m' | '15m' | '1h' | '4h';
+
 export function Chart({
   onPriceClick,
+  timeframe = '1m',
 }: {
   onPriceClick?: (price: number) => void;
+  timeframe?: TimeframeId;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const linesRef = useRef<Map<string, IPriceLine>>(new Map());
-  const lastPriceRef = useRef<number | null>(null);
+  const [ready, setReady] = useState(false);
 
   const { orders } = useOpenOrders();
+  const { fills } = useRecentFills();
 
   // Create chart once
   useEffect(() => {
@@ -42,53 +51,51 @@ export function Chart({
 
     const chart = createChart(el, {
       layout: {
-        background: { type: ColorType.Solid, color: '#11151a' },
-        textColor: '#8b98a5',
-        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        background: { type: ColorType.Solid, color: '#0a0a0a' },
+        textColor: '#a1a1aa',
+        fontFamily: 'var(--font-jetbrains-mono), ui-monospace, monospace',
         fontSize: 11,
       },
       grid: {
-        vertLines: { color: '#161b22' },
-        horzLines: { color: '#161b22' },
+        vertLines: { color: '#1a1a1a' },
+        horzLines: { color: '#1a1a1a' },
       },
-      rightPriceScale: { borderColor: '#222933' },
+      rightPriceScale: { borderColor: '#1f1f1f' },
       timeScale: {
-        borderColor: '#222933',
+        borderColor: '#1f1f1f',
         timeVisible: true,
         secondsVisible: false,
       },
       crosshair: {
         mode: CrosshairMode.Normal,
         horzLine: {
-          color: '#f0b90b',
-          labelBackgroundColor: '#f0b90b',
+          color: '#eab308',
+          labelBackgroundColor: '#eab308',
         },
         vertLine: {
-          color: '#f0b90b',
-          labelBackgroundColor: '#f0b90b',
+          color: '#eab308',
+          labelBackgroundColor: '#eab308',
         },
       },
     });
 
     const series = chart.addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
-      borderUpColor: '#26a69a',
-      borderDownColor: '#ef5350',
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
+      upColor: '#22c55e',
+      downColor: '#ef4444',
+      borderUpColor: '#22c55e',
+      borderDownColor: '#ef4444',
+      wickUpColor: '#22c55e',
+      wickDownColor: '#ef4444',
     });
 
     chartRef.current = chart;
     seriesRef.current = series;
+    setReady(true);
 
-    // Click-to-prefill: convert click Y coordinate → price
     const handleClick = (param: { point?: { x: number; y: number } }) => {
       if (!param.point || !onPriceClick) return;
       const price = series.coordinateToPrice(param.point.y);
-      if (price != null && Number.isFinite(price)) {
-        onPriceClick(Number(price));
-      }
+      if (price != null && Number.isFinite(price)) onPriceClick(Number(price));
     };
     chart.subscribeClick(handleClick);
 
@@ -111,22 +118,21 @@ export function Chart({
       chartRef.current = null;
       seriesRef.current = null;
       linesRef.current.clear();
+      setReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Poll candles
+  // Poll candles — re-fires when timeframe changes
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     async function tick() {
       try {
-        const candles = await fetchCandles('1m', 500);
+        const candles = await fetchCandles(timeframe, 500);
         if (stopped || !seriesRef.current) return;
         seriesRef.current.setData(candles);
-        const last = candles[candles.length - 1];
-        if (last) lastPriceRef.current = last.close;
       } catch (e) {
         console.warn('candle fetch failed', e);
       } finally {
@@ -138,9 +144,9 @@ export function Chart({
       stopped = true;
       if (timer) clearTimeout(timer);
     };
-  }, []);
+  }, [timeframe]);
 
-  // Memoize the overlay lines keyed by orderId so we can diff efficiently.
+  // Memoize overlay lines keyed by orderId.
   const overlayLines = useMemo(() => {
     const out: {
       key: string;
@@ -157,8 +163,8 @@ export function Chart({
       out.push({
         key: `${side}-${id.toString()}`,
         price,
-        color: side === 'buy' ? '#26a69a' : '#ef5350',
-        title: `${side === 'buy' ? 'BUY' : 'SELL'} ${formatSize(size)} @ ${formatPrice(price)}`,
+        color: side === 'buy' ? '#22c55e' : '#ef4444',
+        title: `${side === 'buy' ? 'BUY' : 'SELL'} ${formatSize(size)} ${BASE_SYM}`,
       });
     }
     return out;
@@ -179,7 +185,7 @@ export function Chart({
           color: line.color,
           title: line.title,
           lineWidth: 1,
-          lineStyle: LineStyle.Solid,
+          lineStyle: LineStyle.Dashed,
           axisLabelVisible: true,
         });
       } else {
@@ -187,7 +193,7 @@ export function Chart({
           price: line.price,
           color: line.color,
           lineWidth: 1,
-          lineStyle: LineStyle.Solid,
+          lineStyle: LineStyle.Dashed,
           axisLabelVisible: true,
           title: line.title,
         });
@@ -202,25 +208,46 @@ export function Chart({
     }
   }, [overlayLines]);
 
-  const buyCount = overlayLines.filter((l) => l.color === '#26a69a').length;
+  // Fill markers
+  const markers = useMemo<SeriesMarker<Time>[]>(() => {
+    return fills
+      .filter((f) => f.timestamp != null)
+      .map((f) => ({
+        time: f.timestamp as UTCTimestamp,
+        position: 'aboveBar' as const,
+        color: '#eab308',
+        shape: 'circle' as const,
+        text: `fill #${String(f.orderId)}`,
+      }))
+      .sort((a, b) => Number(a.time) - Number(b.time));
+  }, [fills]);
+
+  useEffect(() => {
+    if (!ready) return;
+    seriesRef.current?.setMarkers(markers);
+  }, [ready, markers]);
+
+  const buyCount = overlayLines.filter((l) => l.color === '#22c55e').length;
   const sellCount = overlayLines.length - buyCount;
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full bg-bg">
       <div ref={containerRef} className="absolute inset-0" />
-      <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-col gap-1 text-[11px]">
-        <div className="rounded border border-border bg-panel/80 px-2 py-[3px] backdrop-blur tab-nums">
-          <span className="text-subtext">BNB/BUSD · 1m · </span>
-          <span className="text-text">Binance spot (reference)</span>
+      <div className="pointer-events-none absolute left-2 top-2 z-10 flex flex-col gap-1 text-[10px]">
+        <div className="num border border-border bg-bg/80 px-2 py-[2px] backdrop-blur">
+          <span className="text-buy">● {buyCount} BUYS</span>
+          <span className="mx-2 text-muted">·</span>
+          <span className="text-sell">● {sellCount} SELLS</span>
+          <span className="ml-2 text-muted">onchain book</span>
+          {markers.length > 0 && (
+            <>
+              <span className="mx-2 text-muted">·</span>
+              <span className="text-accent">● {markers.length} fills</span>
+            </>
+          )}
         </div>
-        <div className="rounded border border-border bg-panel/80 px-2 py-[3px] backdrop-blur tab-nums">
-          <span className="text-buy">● {buyCount} buys</span>
-          <span className="mx-2 text-subtext">/</span>
-          <span className="text-sell">● {sellCount} sells</span>
-          <span className="ml-2 text-subtext">(live onchain book)</span>
-        </div>
-        <div className="rounded border border-border bg-panel/80 px-2 py-[3px] text-subtext backdrop-blur">
-          tap any price → prefills ticket
+        <div className="border border-border bg-bg/80 px-2 py-[2px] text-[9px] uppercase tracking-widest text-muted backdrop-blur">
+          click chart → prefill limit price
         </div>
       </div>
     </div>

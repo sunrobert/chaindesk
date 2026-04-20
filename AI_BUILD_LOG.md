@@ -119,3 +119,70 @@ These are all listed as OUT of scope in the spec. Sticking to scope was the diff
 - **Chart:** lightweight-charts v4.
 - **Candles:** Binance spot `BNBUSDT` 1m klines, REST-polled every 3s. Clearly badged as reference data.
 - **Onchain book:** direct reads against `LimitOrderBook` every 3s. No backend, no indexer, no keeper. The contract's own view helpers are the data API.
+
+---
+
+## Retheme pass — Legend-inspired palette
+
+After the initial functional build, the visual system was reworked to a Legend/Bloomberg-style trading terminal aesthetic:
+
+- **Palette:** `#0a0a0a` background, `#111` panels, `#1f1f1f` borders, `#22c55e`/`#ef4444` for buy/sell, `#eab308` yellow for CTAs and the chart crosshair. No rounded corners greater than 2px.
+- **Typography:** Inter for UI, JetBrains Mono for all numbers (via `next/font/google` with CSS variables). `.num` utility class + `tabular-nums` ensures prices line up in columns.
+- **Top bar:** 56px, shows pair label, live Binance `BNBUSDT` last price (color-coded by 24h change), 24h absolute + percent change, 24h high/low/volume, and BscScan contract link. New `useTicker` hook polls `api.binance.com/api/v3/ticker/24hr` every 3s alongside the existing kline poll.
+- **Layout ratios:** 20% / 60% / 20% three-column grid, edge-to-edge `border-r` separators instead of individual rounded panels.
+- **Chart overlay:** price lines switched from solid to `LineStyle.Dashed` to match Legend-style order overlays. Size labels trimmed to base-asset units (e.g. "BUY 0.5 WBNB").
+- **My Orders:** compact two-line rows with a colored side-bar (green/red), cancel button revealed on hover only. Active/History split preserved.
+- **Recent Fills:** same two-line compact row format, yellow accent bar, tip highlighted in green.
+
+Typecheck stayed clean throughout. Dev server hot-reloaded the whole retheme in place without a restart.
+
+---
+
+## Feature bundle — post-retheme
+
+Six features added in a single sprint to make the demo stand up on testnet and better show off what the contract can actually do.
+
+### 1. Onchain order book ladder (new left column, `components/BookLadder.tsx`)
+
+Aggregates `getOpenOrdersByPair` across both directions into a classic bid/ask ladder — asks ascending (best ask at bottom), a middle spread row that shows the Binance reference price + absolute/percent spread, then bids descending. Each row has a gradient depth bar sized by per-level volume.
+
+Logic in `lib/book.ts`:
+- Price rounding to 2 decimals for visual stacking.
+- `isCrossable(side, limit, ref)` — sell crosses when market ≥ limit, buy crosses when market ≤ limit.
+
+This reinforces the "public onchain book" story in a second form factor alongside the chart overlay.
+
+### 2. Inline Execute button (same component)
+
+Any row that is crossable and NOT owned by the connected wallet gets a yellow `EXEC` button that calls `executeOrder(orderId, [tokenIn, tokenOut])` directly. Hitting it runs the PancakeSwap swap, delivers `minAmountOut` to the maker, and credits the positive slippage tip to the executor — visualizing the "anyone can execute, positive slippage is the tip" property the contract was designed around. Your own orders show a "yours" label.
+
+### 3. Fill markers on the chart
+
+`useRecentFills` now hydrates block timestamps (parallel `getBlock` calls for each unique block from the bootstrap logs; live events get `Date.now()`). `Chart.tsx` threads the timestamped fills into `series.setMarkers` with yellow circles above the bar + a "fill #N" label. Legend badge gains a "● N fills" counter.
+
+### 4. Wrap / unwrap helper (`components/WrapHelper.tsx`)
+
+Pinned to the bottom of the ticket column. Toggles between **Wrap tBNB → WBNB** (calls `WBNB.deposit()` with msg.value) and **Unwrap WBNB → tBNB** (calls `withdraw(wad)`). Shows both live balances inline, has a MAX chip, and a single big yellow action button. Without this, a judge on a clean wallet literally couldn't trade on testnet.
+
+### 5. Amount % chips (25/50/75/MAX) on the ticket
+
+Computed off whichever token is being spent for the current side:
+- SELL side: % of WBNB balance in BASE units
+- BUY side: % of (BUSD balance / limit price) in BASE units
+
+The MAX always targets the BASE-denominated amount input, so the dollar math stays consistent across sides.
+
+### 6. Distance-to-fill on active orders
+
+Every active row in My Orders gets a third sub-line showing "+0.42% to fill" vs the Binance reference price. If the value is ≤ 0, it flips to a yellow "CROSSABLE" label — matching the condition an executor would see. Directionally signed per side (SELL measures how far above market; BUY measures how far below).
+
+### 7. Chart timeframe selector
+
+`1m / 5m / 15m / 1h / 4h` toggle in the chart header. `Chart` takes a `timeframe` prop; `fetchCandles` forwards it to Binance's `interval` query param. Poll interval stays at 3s because Binance serves the full window cheaply.
+
+### Plumbing changes
+
+- `useTicker` moved from a standalone polling loop to React Query, so `Header`, `BookLadder`, and `MyOrders` share one source of truth instead of each one firing its own `/ticker/24hr` request.
+- New `lib/book.ts` + `lib/abi.ts` additions (`wbnbAbi` with `deposit()` payable + `withdraw(uint)`).
+
+Typecheck clean. Production build passes. No bundle bloat beyond the new components.

@@ -7,19 +7,22 @@
 }
 
 html, body {
-  background: #0b0d10;
-  color: #e6edf3;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #0a0a0a;
+  color: #fafafa;
+  font-family: var(--font-inter), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* All numbers get the mono font + tabular alignment */
+.num {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #222933; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #2c3340; }
+::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #2c2c2c; }
 
 /* RainbowKit dark tweaks */
-[data-rk] { --rk-colors-modalBackground: #11151a; }
-
-/* Numeric tabular */
-.tab-nums { font-variant-numeric: tabular-nums; }
+[data-rk] { --rk-colors-modalBackground: #111111; }

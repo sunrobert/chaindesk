@@ -13,10 +13,10 @@ export function Panel({
 }) {
   return (
     <section
-      className={`flex min-h-0 flex-col overflow-hidden rounded border border-border bg-panel ${className}`}
+      className={`flex min-h-0 flex-col overflow-hidden bg-bg ${className}`}
     >
-      <div className="flex items-center justify-between border-b border-border bg-panel2 px-3 py-[6px]">
-        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-subtext">
+      <div className="flex h-8 shrink-0 items-center justify-between border-b border-border bg-panel px-3">
+        <h2 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-subtext">
           {title}
         </h2>
         {right}

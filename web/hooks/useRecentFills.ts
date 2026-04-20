@@ -12,6 +12,7 @@ export type Fill = {
   executorTip: bigint;
   txHash: `0x${string}`;
   blockNumber: bigint;
+  timestamp?: number; // unix seconds, filled in after block lookup
 };
 
 const LOOKBACK_BLOCKS = 50_000n; // ~2 days on BSC testnet (3s blocks)
@@ -59,6 +60,22 @@ export function useRecentFills(): { fills: Fill[]; isLoading: boolean } {
           }))
           .sort((a, b) => Number(b.blockNumber - a.blockNumber))
           .slice(0, MAX_FILLS);
+
+        // Hydrate timestamps in parallel.
+        const uniqBlocks = [...new Set(parsed.map((p) => p.blockNumber))];
+        const tsMap = new Map<bigint, number>();
+        await Promise.all(
+          uniqBlocks.map(async (bn) => {
+            try {
+              const b = await client!.getBlock({ blockNumber: bn });
+              tsMap.set(bn, Number(b.timestamp));
+            } catch {
+              /* ignore */
+            }
+          }),
+        );
+        for (const p of parsed) p.timestamp = tsMap.get(p.blockNumber);
+
         setFills(parsed);
       } catch (e) {
         // Testnet RPCs can be flaky; just stay empty.
@@ -83,6 +100,7 @@ export function useRecentFills(): { fills: Fill[]; isLoading: boolean } {
             executorTip: (l.args.executorTip ?? 0n) as bigint,
             txHash: l.transactionHash!,
             blockNumber: l.blockNumber!,
+            timestamp: Math.floor(Date.now() / 1000),
           }));
           const merged = [...next, ...prev];
           // De-dupe on txHash + orderId

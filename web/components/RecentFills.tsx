@@ -9,41 +9,49 @@ export function RecentFills() {
   const { fills, isLoading } = useRecentFills();
 
   if (isLoading && fills.length === 0) {
-    return (
-      <div className="px-3 py-6 text-center text-[11px] text-subtext">
-        loading…
-      </div>
-    );
+    return <Empty text="Loading…" />;
   }
   if (fills.length === 0) {
-    return (
-      <div className="px-3 py-6 text-center text-[11px] text-subtext">
-        No fills yet. Will light up when anyone executes an order.
-      </div>
-    );
+    return <Empty text="No fills yet. Lights up when anyone executes." />;
   }
 
   return (
-    <div>
+    <div className="bg-bg">
       {fills.map((f) => (
         <a
           key={`${f.txHash}-${String(f.orderId)}`}
           href={`${BSCSCAN}/tx/${f.txHash}`}
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-2 border-b border-border/60 px-3 py-[6px] text-[11px] tab-nums hover:bg-panel2"
+          className="flex items-center gap-2 border-b border-border/60 px-2 py-[6px] text-[11px] hover:bg-panel"
         >
-          <span className="w-10 font-semibold text-accent">FILL</span>
-          <span className="w-12 text-text">#{String(f.orderId)}</span>
-          <span className="w-20 text-text">
-            {Number(formatUnits(f.amountOut, BASE.decimals)).toFixed(4)}
-          </span>
-          <span className="w-20 text-buy">
-            +{Number(formatUnits(f.executorTip, BASE.decimals)).toFixed(4)} tip
-          </span>
-          <span className="flex-1 text-subtext">by {shortAddr(f.executor)}</span>
+          <span className="w-1 self-stretch bg-accent" />
+          <div className="flex min-w-0 flex-1 flex-col leading-tight">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold tracking-widest text-accent">
+                FILL #{String(f.orderId)}
+              </span>
+              <span className="num text-text">
+                {Number(formatUnits(f.amountOut, BASE.decimals)).toFixed(4)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-muted">
+              <span className="num text-[10px]">by {shortAddr(f.executor)}</span>
+              <span className="num text-[10px] text-buy">
+                +{Number(formatUnits(f.executorTip, BASE.decimals)).toFixed(4)} tip
+              </span>
+            </div>
+          </div>
         </a>
       ))}
+    </div>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return (
+    <div className="px-3 py-6 text-center text-[11px] text-muted">
+      {text}
     </div>
   );
 }
