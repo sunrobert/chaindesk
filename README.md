@@ -4,6 +4,7 @@
 
 Submitted for BNB Hack: US College Edition (Track 2 · DeFi & Financial Tools).
 
+- **Live demo:** [chaindesk-mu.vercel.app](https://chaindesk-mu.vercel.app/)
 - **Deployed contract (BSC Testnet):** [`0x3B933087c131B30a38fF9C85EE665209b7005751`](https://testnet.bscscan.com/address/0x3B933087c131B30a38fF9C85EE665209b7005751)
 - **Deployment tx:** [`0x00ed…1adc`](https://testnet.bscscan.com/tx/0x00ed0de341b85a25702f2ece4b1f511bb2a05cf38cba699415391a8b77521adc)
 - **Machine-readable deployment record:** [`bsc.address`](./bsc.address)
